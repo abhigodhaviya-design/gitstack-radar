@@ -1,65 +1,46 @@
 "use client";
+import type { JSX } from "react";
 
-import { Activity, Radar, ShieldAlert, Sparkles } from "lucide-react";
+import { Activity, Download, GitCompare, Radar, ShieldAlert, Sparkles, Search, GitFork } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-
-type ThemeMode = "dark" | "light";
+import { DotGridBackground } from "@/components/shared/DotGridBackground";
+import { globalStyles } from "@/lib/styles";
+import { usePwaInstall } from "@/lib/use-pwa-install";
+import { CountUpStat } from "@/components/animations/CountUpStat";
+import { FloatingTechTags } from "@/components/animations/FloatingTechTags";
+import { RadarPulse } from "@/components/animations/RadarPulse";
+import { AnalysisLoader } from "@/components/animations/AnalysisLoader";
 
 const fontFamily =
   "Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
 const monoFamily =
   "'JetBrains Mono', ui-monospace, SFMono-Regular, Consolas, monospace";
 
-const themes = {
-  dark: {
-    pageBg: "#000000",
-    primary: "#e4e1ee",
-    secondary: "#c7c4d8",
-    muted: "#918fa1",
-    inputBg: "rgba(255,255,255,0.03)",
-    inputBorder: "rgba(255,255,255,0.1)",
-    badgeBg: "rgba(79,70,229,0.15)",
-    badgeBorder: "rgba(79,70,229,0.3)",
-    badgeColor: "#c3c0ff",
-    footer: "#464555",
-    divider: "rgba(255,255,255,0.08)",
-    navbarBg: "rgba(0,0,0,0.85)",
-    navbarBorder: "rgba(255,255,255,0.06)",
-    toggleBg: "rgba(255,255,255,0.05)",
-    toggleBorder: "rgba(255,255,255,0.08)",
-    inputFocusShadow: "rgba(79,70,229,0.2)",
-    glowBg:
-      "radial-gradient(ellipse, rgba(79,70,229,0.07) 0%, transparent 70%)",
-    healthColor: "#4ae176",
-    riskColor: "#ffb95f",
-    insightColor: "#c3c0ff",
-  },
-  light: {
-    pageBg: "#ffffff",
-    primary: "#13121b",
-    secondary: "#464555",
-    muted: "#918fa1",
-    inputBg: "#ffffff",
-    inputBorder: "#d1d0dd",
-    badgeBg: "rgba(79,70,229,0.1)",
-    badgeBorder: "rgba(79,70,229,0.25)",
-    badgeColor: "#4f46e5",
-    footer: "#c7c4d8",
-    divider: "#e4e1ee",
-    navbarBg: "rgba(255,255,255,0.9)",
-    navbarBorder: "#e4e1ee",
-    toggleBg: "#f0f0f5",
-    toggleBorder: "#e4e1ee",
-    inputFocusShadow: "rgba(79,70,229,0.15)",
-    glowBg:
-      "radial-gradient(ellipse, rgba(79,70,229,0.05) 0%, transparent 70%)",
-    healthColor: "#16a34a",
-    riskColor: "#b45309",
-    insightColor: "#4f46e5",
-  },
-} satisfies Record<ThemeMode, Record<string, string>>;
+const theme = {
+  pageBg: "#000000",
+  primary: "#e4e1ee",
+  secondary: "#c7c4d8",
+  muted: "#918fa1",
+  inputBg: "rgba(255,255,255,0.03)",
+  inputBorder: "rgba(255,255,255,0.08)",
+  badgeBg: "rgba(79,70,229,0.15)",
+  badgeBorder: "rgba(79,70,229,0.3)",
+  badgeColor: "#c3c0ff",
+  footer: "#464555",
+  divider: "rgba(255,255,255,0.08)",
+  navbarBg: "rgba(0,0,0,0.85)",
+  navbarBorder: "rgba(255,255,255,0.06)",
+  inputFocusShadow: "rgba(79,70,229,0.2)",
+  glowBg:
+    "radial-gradient(ellipse, rgba(79,70,229,0.07) 0%, transparent 70%)",
+  healthColor: "#4ae176",
+  riskColor: "#ffb95f",
+  insightColor: "#c3c0ff",
+  accent: "#4f46e5",
+  accentHover: "#3730a3",
+};
 
 const featureHints = [
   {
@@ -80,173 +61,68 @@ const featureHints = [
 ] as const;
 
 const stats = [
-  ["500+", "Repos Analyzed"],
-  ["20+", "Metrics Tracked"],
-  ["AI", "Powered Analysis"],
-  ["Free", "No Signup Needed"],
+  { value: 500, suffix: "+", label: "Repos Analyzed" },
+  { value: 20, suffix: "+", label: "Metrics Tracked" },
+  { value: 0, suffix: "", label: "AI", sublabel: "Powered Analysis" },
+  { value: 0, suffix: "", label: "Free", sublabel: "No Signup Needed" },
 ];
 
-type Dot = {
-  x: number;
-  y: number;
-};
-
-function DotGridBackground({ isDark }: { isDark: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const context = canvas?.getContext("2d");
-
-    if (!canvas || !context) {
-      return;
-    }
-
-    let animationFrame = 0;
-    let dots: Dot[] = [];
-    const mouse = {
-      currentX: window.innerWidth / 2,
-      currentY: window.innerHeight / 2,
-      targetX: window.innerWidth / 2,
-      targetY: window.innerHeight / 2,
-    };
-
-    const resizeCanvas = () => {
-      const pixelRatio = window.devicePixelRatio || 1;
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-
-      canvas.width = width * pixelRatio;
-      canvas.height = height * pixelRatio;
-      canvas.style.width = "100%";
-      canvas.style.height = "100%";
-      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-
-      dots = [];
-
-      for (let x = 0; x <= width + 60; x += 60) {
-        for (let y = 0; y <= height + 60; y += 60) {
-          dots.push({ x, y });
-        }
-      }
-    };
-
-    const handleMouseMove = (event: MouseEvent) => {
-      mouse.targetX = event.clientX;
-      mouse.targetY = event.clientY;
-    };
-
-    const draw = () => {
-      const width = window.innerWidth;
-      const height = window.innerHeight;
-      const activeDots: Array<Dot & { influence: number }> = [];
-
-      mouse.currentX += (mouse.targetX - mouse.currentX) * 0.08;
-      mouse.currentY += (mouse.targetY - mouse.currentY) * 0.08;
-
-      context.clearRect(0, 0, width, height);
-
-      for (const dot of dots) {
-        const distanceToMouse = Math.hypot(
-          dot.x - mouse.currentX,
-          dot.y - mouse.currentY,
-        );
-        const influence =
-          distanceToMouse < 120 ? 1 - distanceToMouse / 120 : 0;
-        const opacity = 0.15 + influence * 0.55;
-        const radius = 1.2 + influence * 1.3;
-        const colorChannel = isDark ? "255,255,255" : "0,0,0";
-
-        if (distanceToMouse < 150) {
-          activeDots.push({ ...dot, influence: 1 - distanceToMouse / 150 });
-        }
-
-        context.beginPath();
-        context.arc(dot.x, dot.y, radius, 0, Math.PI * 2);
-        context.fillStyle = `rgba(${colorChannel},${opacity})`;
-        context.fill();
-      }
-
-      for (let index = 0; index < activeDots.length; index += 1) {
-        for (let nextIndex = index + 1; nextIndex < activeDots.length; nextIndex += 1) {
-          const first = activeDots[index];
-          const second = activeDots[nextIndex];
-          const dotDistance = Math.hypot(first.x - second.x, first.y - second.y);
-
-          if (dotDistance <= 80) {
-            const distanceInfluence = 1 - dotDistance / 80;
-            const mouseInfluence = Math.min(first.influence, second.influence);
-            const lineOpacity = distanceInfluence * mouseInfluence * 0.25;
-            const colorChannel = isDark ? "255,255,255" : "0,0,0";
-
-            context.beginPath();
-            context.moveTo(first.x, first.y);
-            context.lineTo(second.x, second.y);
-            context.strokeStyle = `rgba(${colorChannel},${lineOpacity})`;
-            context.lineWidth = 0.5;
-            context.stroke();
-          }
-        }
-      }
-
-      animationFrame = window.requestAnimationFrame(draw);
-    };
-
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    window.addEventListener("mousemove", handleMouseMove);
-    animationFrame = window.requestAnimationFrame(draw);
-
-    return () => {
-      window.cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", resizeCanvas);
-      window.removeEventListener("mousemove", handleMouseMove);
-    };
-  }, [isDark]);
-
-  return (
-    <canvas
-      ref={canvasRef}
-      style={{
-        ...styles.dotCanvas,
-        background: isDark ? "#000000" : "transparent",
-      }}
-      aria-hidden="true"
-    />
-  );
-}
-
-export default function HomePage() {
+export default function HomePage(): JSX.Element {
   const router = useRouter();
+  const { isInstallable, isInstalled, isInstalling, install } = usePwaInstall();
+  
+  // Segmented control state
+  const [activeMode, setActiveMode] = useState<"analyze" | "compare">("analyze");
+  
+  // Analyze mode state
   const [repoUrl, setRepoUrl] = useState("");
   const [hasError, setHasError] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [isHovered, setIsHovered] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [themeMode, setThemeMode] = useState<ThemeMode>("dark");
+  
+  // Compare mode state
+  const [repo1Url, setRepo1Url] = useState("");
+  const [repo2Url, setRepo2Url] = useState("");
+  const [repo1Error, setRepo1Error] = useState(false);
+  const [repo2Error, setRepo2Error] = useState(false);
+  const [repo1Focused, setRepo1Focused] = useState(false);
+  const [repo2Focused, setRepo2Focused] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [showAnalysisLoader, setShowAnalysisLoader] = useState(false);
 
-  const theme = themes[themeMode];
-  const isDark = themeMode === "dark";
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleAnalyzeSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     const value = repoUrl.trim();
-
     if (!value) {
       setHasError(true);
       return;
     }
-
     setIsLoading(true);
-    router.push(`/dashboard?repo=${encodeURIComponent(value)}`);
+    setShowAnalysisLoader(true);
+    
+    // Show analysis loader for 2.4 seconds (6 steps × 400ms)
+    setTimeout(() => {
+      router.push(`/dashboard?repo=${encodeURIComponent(value)}`);
+    }, 2400);
   };
 
-  const inputBorderColor = hasError
-    ? "#ffb4ab"
-    : isFocused
-      ? "#4f46e5"
-      : theme.inputBorder;
+  const handleCompareSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const val1 = repo1Url.trim();
+    const val2 = repo2Url.trim();
+    
+    if (!val1) {
+      setRepo1Error(true);
+      return;
+    }
+    if (!val2) {
+      setRepo2Error(true);
+      return;
+    }
+    
+    setCompareLoading(true);
+    router.push(`/compare?repo1=${encodeURIComponent(val1)}&repo2=${encodeURIComponent(val2)}`);
+  };
 
   return (
     <main
@@ -256,9 +132,12 @@ export default function HomePage() {
         color: theme.primary,
       }}
     >
-      <DotGridBackground isDark={isDark} />
+      <DotGridBackground isDark={true} />
+      <FloatingTechTags />
+      <RadarPulse />
 
       <nav
+        className="will-animate animate-fade-in-down"
         style={{
           ...styles.navbar,
           background: theme.navbarBg,
@@ -273,40 +152,78 @@ export default function HomePage() {
           </span>
         </div>
 
-        <div
-          style={{
-            ...styles.themeToggle,
-            background: theme.toggleBg,
-            borderColor: theme.toggleBorder,
-          }}
-          aria-label="Theme toggle"
-        >
-          {(["dark", "light"] as const).map((mode) => {
-            const isActive = themeMode === mode;
-
-            return (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setThemeMode(mode)}
-                style={{
-                  ...styles.themeOption,
-                  ...(isActive ? styles.themeOptionActive : undefined),
-                  color: isActive ? "white" : theme.muted,
-                }}
-                aria-pressed={isActive}
-              >
-                {mode === "dark" ? "Dark" : "Light"}
-              </button>
-            );
-          })}
-        </div>
+        {/* Install Button - Only show when not installed */}
+        {isInstalled ? (
+          <span
+            style={{
+              ...globalStyles.installButton,
+              color: "#4ae176",
+              background: "rgba(74,225,118,0.08)",
+              border: "1px solid rgba(74,225,118,0.2)",
+              cursor: "default",
+            }}
+            aria-label="App is installed"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4ae176"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            Installed
+          </span>
+        ) : isInstallable ? (
+          <button
+            type="button"
+            onClick={async () => {
+              const installed = await install();
+              if (!installed) {
+                // Only show message if there was a real error, not just "not available"
+                console.log("ℹ️ PWA: Installation not completed");
+              }
+            }}
+            disabled={isInstalling}
+            aria-label="Install GitStack Radar App"
+            style={{
+              ...globalStyles.installButton,
+              opacity: isInstalling ? 0.6 : 1,
+              cursor: isInstalling ? "not-allowed" : "pointer",
+            }}
+            onMouseEnter={(e) => {
+              if (!isInstalling) {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "rgba(79,70,229,0.12)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor =
+                  "rgba(79,70,229,0.3)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!isInstalling) {
+                (e.currentTarget as HTMLButtonElement).style.background =
+                  "rgba(255,255,255,0.05)";
+                (e.currentTarget as HTMLButtonElement).style.borderColor =
+                  "rgba(255,255,255,0.08)";
+              }
+            }}
+          >
+            <Download size={14} strokeWidth={2} />
+            {isInstalling ? "Installing..." : "Install App"}
+          </button>
+        ) : null}
       </nav>
 
       <div style={{ ...styles.glow, background: theme.glowBg }} />
 
       <section style={styles.hero} aria-labelledby="home-title">
         <div
+          className="will-animate animate-fade-in delay-200"
           style={{
             ...styles.badge,
             background: theme.badgeBg,
@@ -317,12 +234,12 @@ export default function HomePage() {
           AI-Powered Repository Intelligence
         </div>
 
-        <h1 id="home-title" style={{ ...styles.heading, color: theme.primary }}>
+        <h1 id="home-title" className="will-animate animate-fade-in-up delay-300" style={{ ...styles.heading, color: theme.primary }}>
           <span style={styles.headingLine}>Analyze Any GitHub</span>
           <span style={styles.headingLine}>Repository Instantly</span>
         </h1>
 
-        <p style={{ ...styles.subheading, color: theme.secondary }}>
+        <p className="will-animate animate-fade-in-up delay-400" style={{ ...styles.subheading, color: theme.secondary }}>
           <span style={styles.subheadingLine}>
             Get AI-powered health scores, risk analysis, activity insights
           </span>
@@ -331,88 +248,292 @@ export default function HomePage() {
           </span>
         </p>
 
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.inputRow}>
-            <input
-              type="text"
-              value={repoUrl}
-              disabled={isLoading}
-              placeholder="https://github.com/username/repo"
-              onBlur={() => setIsFocused(false)}
-              onFocus={() => setIsFocused(true)}
-              onChange={(event) => {
-                setRepoUrl(event.target.value);
-                if (hasError) {
-                  setHasError(false);
-                }
-              }}
-              style={{
-                ...styles.input,
-                background: theme.inputBg,
-                borderColor: inputBorderColor,
-                boxShadow: isFocused
-                  ? `0 0 0 3px ${theme.inputFocusShadow}`
-                  : "none",
-                color: theme.primary,
-              }}
-              aria-label="GitHub repository URL"
-              aria-invalid={hasError}
-            />
-
+        {/* Modern Segmented Control + Search Panel */}
+        <div className="will-animate animate-scale-in delay-500" style={styles.searchContainer}>
+          {/* Segmented Control */}
+          <div style={styles.segmentedControl}>
             <button
-              type="submit"
-              disabled={isLoading}
-              onMouseEnter={() => setIsHovered(true)}
-              onMouseLeave={() => setIsHovered(false)}
+              type="button"
+              onClick={() => setActiveMode("analyze")}
               style={{
-                ...styles.button,
-                background: isHovered && !isLoading ? "#3730a3" : "#4f46e5",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                opacity: isLoading ? 0.7 : 1,
+                ...styles.segmentButton,
+                background: activeMode === "analyze" ? "rgba(79,70,229,0.2)" : "transparent",
+                color: activeMode === "analyze" ? theme.primary : theme.muted,
+                borderColor: activeMode === "analyze" ? "rgba(79,70,229,0.4)" : "transparent",
               }}
             >
-              {isLoading ? "Analyzing..." : "Analyze"}
+              <Search size={16} strokeWidth={2} />
+              Analyze Repository
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveMode("compare")}
+              style={{
+                ...styles.segmentButton,
+                background: activeMode === "compare" ? "rgba(79,70,229,0.2)" : "transparent",
+                color: activeMode === "compare" ? theme.primary : theme.muted,
+                borderColor: activeMode === "compare" ? "rgba(79,70,229,0.4)" : "transparent",
+              }}
+            >
+              <GitFork size={16} strokeWidth={2} />
+              Compare Repositories
             </button>
           </div>
 
-          <div style={styles.featureRow} aria-label="Repository analysis features">
-            {featureHints.map(({ Icon, colorKey, text }) => {
-              const color = theme[colorKey];
+          {/* Search Panel */}
+          <div style={{
+            ...styles.searchPanel,
+            transition: "all 0.3s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 8px 24px rgba(79,70,229,0.15)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "none";
+          }}
+          >
+            {activeMode === "analyze" ? (
+              <form onSubmit={handleAnalyzeSubmit} style={{ width: "100%" }}>
+                <div style={styles.inputGroup}>
+                  <div style={styles.inputWrapper}>
+                    <input
+                      type="text"
+                      value={repoUrl}
+                      disabled={isLoading}
+                      placeholder="https://github.com/owner/repository"
+                      onBlur={() => setIsFocused(false)}
+                      onFocus={() => setIsFocused(true)}
+                      onChange={(event) => {
+                        setRepoUrl(event.target.value);
+                        if (hasError) setHasError(false);
+                      }}
+                      style={{
+                        ...styles.modernInput,
+                        borderColor: hasError
+                          ? "#ffb4ab"
+                          : isFocused
+                            ? "#4f46e5"
+                            : theme.inputBorder,
+                        boxShadow: isFocused
+                          ? `0 0 0 3px ${theme.inputFocusShadow}`
+                          : "none",
+                        paddingLeft: "16px",  // Removed extra padding for icon
+                      }}
+                      aria-label="GitHub repository URL"
+                      aria-invalid={hasError}
+                    />
+                    <button
+                      type="submit"
+                      disabled={isLoading}
+                      style={{
+                        ...styles.modernButton,
+                        cursor: isLoading ? "not-allowed" : "pointer",
+                        opacity: isLoading ? 0.7 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isLoading) {
+                          (e.currentTarget as HTMLButtonElement).style.background = "#3730a3";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isLoading) {
+                          (e.currentTarget as HTMLButtonElement).style.background = "#4f46e5";
+                        }
+                      }}
+                    >
+                      {isLoading ? "Analyzing..." : "Analyze →"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleCompareSubmit} style={{ width: "100%" }}>
+                <div style={styles.compareInputs}>
+                  <div style={styles.inputWrapper}>
+                    <input
+                      type="text"
+                      value={repo1Url}
+                      disabled={compareLoading}
+                      placeholder="https://github.com/owner/repository-1"
+                      onBlur={() => setRepo1Focused(false)}
+                      onFocus={() => setRepo1Focused(true)}
+                      onChange={(event) => {
+                        setRepo1Url(event.target.value);
+                        if (repo1Error) setRepo1Error(false);
+                      }}
+                      style={{
+                        ...styles.modernInput,
+                        borderColor: repo1Error
+                          ? "#ffb4ab"
+                          : repo1Focused
+                            ? "#4f46e5"
+                            : theme.inputBorder,
+                        boxShadow: repo1Focused
+                          ? `0 0 0 3px ${theme.inputFocusShadow}`
+                          : "none",
+                        paddingLeft: "16px",  // Removed extra padding for icon
+                        paddingRight: "16px",
+                      }}
+                      aria-label="First GitHub repository URL"
+                      aria-invalid={repo1Error}
+                    />
+                  </div>
+                  
+                  <div style={styles.inputWrapper}>
+                    <input
+                      type="text"
+                      value={repo2Url}
+                      disabled={compareLoading}
+                      placeholder="https://github.com/owner/repository-2"
+                      onBlur={() => setRepo2Focused(false)}
+                      onFocus={() => setRepo2Focused(true)}
+                      onChange={(event) => {
+                        setRepo2Url(event.target.value);
+                        if (repo2Error) setRepo2Error(false);
+                      }}
+                      style={{
+                        ...styles.modernInput,
+                        borderColor: repo2Error
+                          ? "#ffb4ab"
+                          : repo2Focused
+                            ? "#4f46e5"
+                            : theme.inputBorder,
+                        boxShadow: repo2Focused
+                          ? `0 0 0 3px ${theme.inputFocusShadow}`
+                          : "none",
+                        paddingLeft: "16px",  // Removed extra padding for icon
+                        paddingRight: "16px",
+                      }}
+                      aria-label="Second GitHub repository URL"
+                      aria-invalid={repo2Error}
+                    />
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={compareLoading}
+                    style={{
+                      ...styles.modernButton,
+                      width: "100%",
+                      cursor: compareLoading ? "not-allowed" : "pointer",
+                      opacity: compareLoading ? 0.7 : 1,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!compareLoading) {
+                        (e.currentTarget as HTMLButtonElement).style.background = "#3730a3";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!compareLoading) {
+                        (e.currentTarget as HTMLButtonElement).style.background = "#4f46e5";
+                      }
+                    }}
+                  >
+                    {compareLoading ? "Comparing..." : "Compare →"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
 
-              return (
-              <span key={text} style={{ ...styles.featureHint, color }}>
+        <div style={styles.featureRow} aria-label="Repository analysis features">
+          {featureHints.map(({ Icon, colorKey, text }) => {
+            const color = theme[colorKey];
+            return (
+              <span
+                key={text}
+                style={{
+                  ...styles.featureHint,
+                  color,
+                  transition: "all 0.3s ease",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = "translateY(-2px)";
+                  e.currentTarget.style.filter = "brightness(1.2)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.filter = "brightness(1)";
+                }}
+              >
                 <Icon size={16} color={color} strokeWidth={2.2} />
                 {text}
               </span>
-              );
-            })}
-          </div>
+            );
+          })}
+        </div>
 
-          <div style={styles.statsRow} aria-label="GitStack Radar stats">
-            {stats.map(([label, sublabel], index) => (
-              <div
-                key={label}
-                style={{
-                  ...styles.statItem,
-                  borderLeft:
-                    index === 0 ? "none" : `1px solid ${theme.divider}`,
-                }}
-              >
-                <div style={{ ...styles.statLabel, color: theme.primary }}>
-                  {label}
-                </div>
-                <div style={{ ...styles.statSublabel, color: theme.muted }}>
-                  {sublabel}
-                </div>
-              </div>
-            ))}
+        <div style={styles.statsRow} aria-label="GitStack Radar stats">
+          <div style={{ textAlign: "center", minWidth: "clamp(100px, 20%, 128px)", padding: "0 clamp(8px, 2vw, 20px)" }}>
+            <CountUpStat
+              end={500}
+              suffix="+"
+              label="500+"
+              sublabel="Repos Analyzed"
+              color={theme.primary}
+              monoFamily={monoFamily}
+              fontFamily={fontFamily}
+            />
           </div>
-        </form>
+          <div style={{ width: "1px", height: "40px", background: theme.divider, display: "none" }} className="stat-divider" />
+          <div style={{ textAlign: "center", minWidth: "clamp(100px, 20%, 128px)", padding: "0 clamp(8px, 2vw, 20px)" }}>
+            <CountUpStat
+              end={20}
+              suffix="+"
+              label="20+"
+              sublabel="Metrics Tracked"
+              color={theme.primary}
+              monoFamily={monoFamily}
+              fontFamily={fontFamily}
+            />
+          </div>
+          <div style={{ width: "1px", height: "40px", background: theme.divider, display: "none" }} className="stat-divider" />
+          <div style={{ textAlign: "center", minWidth: "clamp(100px, 20%, 128px)", padding: "0 clamp(8px, 2vw, 20px)" }}>
+            <div style={{ ...styles.statLabel, color: theme.primary }}>AI</div>
+            <div style={{ ...styles.statSublabel, color: theme.muted }}>Powered Analysis</div>
+          </div>
+          <div style={{ width: "1px", height: "40px", background: theme.divider, display: "none" }} className="stat-divider" />
+          <div style={{ textAlign: "center", minWidth: "clamp(100px, 20%, 128px)", padding: "0 clamp(8px, 2vw, 20px)" }}>
+            <div style={{ ...styles.statLabel, color: theme.primary }}>Free</div>
+            <div style={{ ...styles.statSublabel, color: theme.muted }}>No Signup Needed</div>
+          </div>
+        </div>
+        <style jsx>{`
+          @media (min-width: 768px) {
+            .stat-divider {
+              display: block !important;
+            }
+          }
+        `}</style>
       </section>
 
       <footer style={{ ...styles.footer, color: theme.footer }}>
         Built with Next.js · GitHub API · Gemini AI
       </footer>
+
+      {/* Analysis Loader Modal */}
+      {showAnalysisLoader && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: "rgba(0,0,0,0.8)",
+            backdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}
+        >
+          <AnalysisLoader />
+        </div>
+      )}
     </main>
   );
 }
@@ -425,7 +546,7 @@ const styles: Record<string, CSSProperties> = {
     justifyContent: "center",
     minHeight: "100vh",
     overflow: "hidden",
-    padding: "80px 24px 96px",
+    padding: "80px clamp(16px, 3vw, 24px) clamp(40px, 10vh, 96px)",
     position: "relative",
     transition: "background 0.2s ease, color 0.2s ease",
   },
@@ -439,7 +560,7 @@ const styles: Record<string, CSSProperties> = {
     height: "56px",
     justifyContent: "space-between",
     left: 0,
-    padding: "0 40px",
+    padding: "0 clamp(16px, 5vw, 40px)",
     position: "fixed",
     right: 0,
     top: 0,
@@ -456,29 +577,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "16px",
     fontWeight: 600,
     lineHeight: 1.2,
-  },
-  themeToggle: {
-    alignItems: "center",
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "999px",
-    display: "flex",
-    padding: "4px",
-  },
-  themeOption: {
-    background: "transparent",
-    border: "none",
-    borderRadius: "999px",
-    cursor: "pointer",
-    fontFamily,
-    fontSize: "13px",
-    fontWeight: 500,
-    lineHeight: 1.3,
-    padding: "4px 14px",
-    transition: "background 0.2s ease, color 0.2s ease",
-  },
-  themeOptionActive: {
-    background: "#4f46e5",
   },
   glow: {
     height: "800px",
@@ -512,7 +610,7 @@ const styles: Record<string, CSSProperties> = {
   },
   heading: {
     fontFamily,
-    fontSize: "52px",
+    fontSize: "clamp(32px, 8vw, 52px)",
     fontWeight: 700,
     letterSpacing: "-0.02em",
     lineHeight: 1.1,
@@ -525,7 +623,7 @@ const styles: Record<string, CSSProperties> = {
   },
   subheading: {
     fontFamily,
-    fontSize: "18px",
+    fontSize: "clamp(15px, 3vw, 18px)",
     fontWeight: 400,
     lineHeight: 1.5,
     margin: "0 0 40px",
@@ -534,43 +632,110 @@ const styles: Record<string, CSSProperties> = {
   subheadingLine: {
     display: "block",
   },
-  form: {
+  searchContainer: {
     alignItems: "center",
     display: "flex",
     flexDirection: "column",
+    gap: "16px",
     width: "100%",
+    maxWidth: "700px",
+    margin: "0 auto",
   },
-  inputRow: {
-    display: "flex",
-    gap: "12px",
-    maxWidth: "600px",
-    width: "100%",
-  },
-  input: {
+  segmentedControl: {
+    alignItems: "center",
+    background: "rgba(255,255,255,0.03)",
     border: "1px solid rgba(255,255,255,0.08)",
-    borderRadius: "10px",
+    borderRadius: "12px",
+    display: "flex",
+    gap: "8px",
+    padding: "6px",
+    width: "100%",
     boxSizing: "border-box",
+  },
+  segmentButton: {
+    alignItems: "center",
+    background: "transparent",
+    border: "1px solid transparent",
+    borderRadius: "8px",
+    color: "#918fa1",
+    cursor: "pointer",
+    display: "flex",
     flex: 1,
+    fontFamily,
+    fontSize: "14px",
+    fontWeight: 500,
+    gap: "8px",
+    justifyContent: "center",
+    outline: "none",
+    padding: "10px 16px",
+    transition: "all 0.2s ease",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+  },
+  searchPanel: {
+    alignItems: "center",
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "16px",
+    boxSizing: "border-box",
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+    padding: "24px",
+    width: "100%",
+  },
+  inputGroup: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0",
+    width: "100%",
+  },
+  inputWrapper: {
+    position: "relative",
+    width: "100%",
+  },
+  inputIcon: {
+    left: "16px",
+    pointerEvents: "none",
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    zIndex: 1,
+  },
+  modernInput: {
+    background: "rgba(255,255,255,0.03)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: "12px",
+    boxSizing: "border-box",
+    color: "#e4e1ee",
     fontFamily,
     fontSize: "15px",
     height: "52px",
-    minWidth: 0,
     outline: "none",
-    padding: "0 18px",
-    transition: "border-color 0.2s ease, box-shadow 0.2s ease",
+    padding: "0 16px",
+    transition: "all 0.2s ease",
+    width: "100%",
   },
-  button: {
+  modernButton: {
+    background: "#4f46e5",
     border: "none",
-    borderRadius: "10px",
+    borderRadius: "12px",
     color: "white",
     fontFamily,
     fontSize: "15px",
     fontWeight: 600,
     height: "52px",
+    marginTop: "12px",
+    outline: "none",
     padding: "0 28px",
-    transition: "background 0.2s ease, opacity 0.2s ease",
-    whiteSpace: "nowrap",
-    width: "140px",
+    transition: "all 0.2s ease",
+    width: "auto",
+  },
+  compareInputs: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    width: "100%",
   },
   featureRow: {
     alignItems: "center",
@@ -578,7 +743,9 @@ const styles: Record<string, CSSProperties> = {
     flexWrap: "wrap",
     gap: "12px 24px",
     justifyContent: "center",
-    marginTop: "16px",
+    marginTop: "32px",
+    maxWidth: "700px",
+    width: "100%",
   },
   featureHint: {
     alignItems: "center",
@@ -591,31 +758,34 @@ const styles: Record<string, CSSProperties> = {
   statsRow: {
     alignItems: "stretch",
     display: "flex",
-    gap: 0,
+    flexWrap: "wrap",
+    gap: "12px",
     justifyContent: "center",
-    marginTop: "40px",
+    marginTop: "32px",
+    maxWidth: "100%",
+    width: "100%",
   },
   statItem: {
-    minWidth: "128px",
-    padding: "0 20px",
+    minWidth: "clamp(100px, 25%, 128px)",
+    padding: "0 clamp(8px, 2vw, 20px)",
     textAlign: "center",
   },
   statLabel: {
     fontFamily,
-    fontSize: "22px",
+    fontSize: "clamp(18px, 4vw, 22px)",
     fontWeight: 700,
     lineHeight: 1.2,
     marginBottom: "4px",
   },
   statSublabel: {
     fontFamily,
-    fontSize: "12px",
+    fontSize: "clamp(11px, 2vw, 12px)",
     lineHeight: 1.4,
   },
   footer: {
-    bottom: "32px",
+    bottom: "clamp(16px, 4vh, 32px)",
     fontFamily: monoFamily,
-    fontSize: "12px",
+    fontSize: "clamp(10px, 2vw, 12px)",
     left: "50%",
     lineHeight: 1.5,
     position: "absolute",
@@ -623,14 +793,5 @@ const styles: Record<string, CSSProperties> = {
     transform: "translateX(-50%)",
     width: "calc(100% - 48px)",
     zIndex: 1,
-  },
-  dotCanvas: {
-    height: "100%",
-    left: 0,
-    pointerEvents: "none",
-    position: "fixed",
-    top: 0,
-    width: "100%",
-    zIndex: 0,
   },
 };
